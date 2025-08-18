@@ -70,7 +70,7 @@ app/
 │     │  └─ layout/
 │     │     └─ activity_main.xml       # Simple control UI
 │     └─ AndroidManifest.xml           # Declares the foreground Service
-├─ build.gradle                         # May reference absolute paths for Qt/OpenCV as needed
+├─ build.gradle                        # May reference absolute paths for Qt/OpenCV as needed
 ├─ settings.gradle
 └─ gradle.properties
 ```
