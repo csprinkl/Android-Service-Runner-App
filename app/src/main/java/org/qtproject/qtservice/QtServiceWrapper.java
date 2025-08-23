@@ -45,6 +45,7 @@ public class QtServiceWrapper extends Service {
     private native boolean nativeStopService();
     private native boolean nativeIsServiceRunning();
     private native void nativeCleanupService();
+    private native String nativeTestOpenCV();
 
     @Override
     public void onCreate() {
@@ -79,6 +80,22 @@ public class QtServiceWrapper extends Service {
     public int onStartCommand(Intent intent, int flags, int startId) {
         Log.d(TAG, "=== QtServiceWrapper onStartCommand ===");
 
+        // Check for special actions
+        if (intent != null && intent.getAction() != null) {
+            if ("TEST_OPENCV".equals(intent.getAction())) {
+                Log.d(TAG, "Received OpenCV test request");
+                if (qtInitialized) {
+                    mainHandler.post(() -> {
+                        String result = testOpenCV();
+                        Log.i(TAG, "OpenCV Test Result: " + result);
+                    });
+                } else {
+                    Log.w(TAG, "Cannot test OpenCV - service not initialized");
+                }
+                return START_STICKY;
+            }
+        }
+
         checkNotificationPermission();
 
         if (hasNotificationPermission) {
@@ -91,8 +108,11 @@ public class QtServiceWrapper extends Service {
             startForeground(NOTIFICATION_ID, notification);
         }
 
-        if (!qtStarted) {
+        // Always start Qt initialization if not already running
+        // This handles the case where the service was stopped and restarted
+        if (!qtStarted || !qtInitialized) {
             qtStarted = true;
+            qtInitialized = false; // Reset to ensure clean initialization
             mainHandler.post(this::startQtInitialization);
         }
 
@@ -120,9 +140,14 @@ public class QtServiceWrapper extends Service {
                 }
             }
 
+            // Reset all static state for clean restart
             qtInitialized = false;
             qtStarted = false;
-            Log.d(TAG, "Qt service cleanup completed");
+            
+            // Force garbage collection to clean up any remaining native references
+            System.gc();
+            
+            Log.d(TAG, "Qt service cleanup completed - ready for restart");
 
         } catch (Exception e) {
             Log.e(TAG, "Error during cleanup", e);
@@ -201,6 +226,10 @@ public class QtServiceWrapper extends Service {
         } catch (Exception e) {
             Log.e(TAG, "Qt service initialization failed", e);
             updateNotification("ERROR: Qt service failed - " + e.getMessage());
+            
+            // Reset state on failure to allow retry
+            qtInitialized = false;
+            qtStarted = false;
         }
     }
 
@@ -263,5 +292,50 @@ public class QtServiceWrapper extends Service {
             manager.createNotificationChannel(channel);
             Log.d(TAG, "✓ Notification channel created");
         }
+    }
+
+    /**
+     * Test OpenCV functionality
+     * Call this method to verify OpenCV is working
+     */
+    public String testOpenCV() {
+        try {
+            Log.d(TAG, "Testing OpenCV functionality...");
+            
+            // Check if service is initialized
+            if (!qtInitialized) {
+                return "OpenCV test failed - Qt service not initialized. Start the service first.";
+            }
+            
+            String result = nativeTestOpenCV();
+            Log.d(TAG, "OpenCV Test Result: " + result);
+            return result;
+        } catch (UnsatisfiedLinkError e) {
+            String error = "OpenCV test failed - native method not available: " + e.getMessage();
+            Log.e(TAG, error);
+            return error;
+        } catch (Exception e) {
+            String error = "OpenCV test failed with exception: " + e.getMessage();
+            Log.e(TAG, error, e);
+            return error;
+        }
+    }
+    
+    /**
+     * Check if the service is in a healthy state and ready for restart
+     */
+    public boolean isServiceHealthy() {
+        return qtStarted && qtInitialized;
+    }
+    
+    /**
+     * Force reset the service state (useful for debugging)
+     */
+    public void forceReset() {
+        Log.d(TAG, "Force resetting service state...");
+        qtStarted = false;
+        qtInitialized = false;
+        System.gc();
+        Log.d(TAG, "Service state reset completed");
     }
 }

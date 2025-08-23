@@ -18,14 +18,13 @@ android {
         // <-- Put your CMake args here so they’re guaranteed to be passed.
         externalNativeBuild {
             cmake {
-                // Use an ABSOLUTE path; no "~"
-                arguments "-DCMAKE_PREFIX_PATH=/Users/csprinkl/Qt/6.5.3/android_arm64_v8a",
-                        "-DQt6_DIR=/Users/csprinkl/Qt/6.5.3/android_arm64_v8a/lib/cmake/Qt6",
-                        "-DQT_HOST_PATH=/Users/csprinkl/Qt/6.5.3/macos",
-                        "-DQt6CoreTools_DIR=/Users/csprinkl/Qt/6.5.3/macos/lib/cmake/Qt6CoreTools",
-                        "-DCMAKE_FIND_ROOT_PATH=/Users/csprinkl/Library/Android/sdk/ndk/27.0.12077973;/Users/csprinkl/Qt/6.5.3/android_arm64_v8a",
-                        "-DQT_ADDITIONAL_PACKAGES_PREFIX_PATH=/Users/csprinkl/Qt/6.5.3/android_arm64_v8a",
-                        "-DOpenCV_DIR=/Users/csprinkl/GitProjects/proteus/proteuscore-exe/OpenCV/opencv-android-sdk/sdk/native/jni",
+                // Use Windows Qt paths
+                arguments "-DCMAKE_PREFIX_PATH=C:/Qt/6.5.3/android_arm64_v8a",
+                        "-DQt6_DIR=C:/Qt/6.5.3/android_arm64_v8a/lib/cmake/Qt6",
+                        "-DQT_HOST_PATH=C:/Qt/6.5.3/msvc2019_64",
+                        "-DQt6CoreTools_DIR=C:/Qt/6.5.3/msvc2019_64/lib/cmake/Qt6",
+                        "-DCMAKE_FIND_ROOT_PATH=C:/Users/levon/AppData/Local/Android/Sdk/ndk/27.0.12077973;C:/Qt/6.5.3/android_arm64_v8a",
+                        "-DQT_ADDITIONAL_PACKAGES_PREFIX_PATH=C:/Qt/6.5.3/android_arm64_v8a",
                         "-DANDROID_STL=c++_shared",
                         "-DQT_DEBUG_FIND_PACKAGE=ON"
             }
@@ -52,23 +51,31 @@ android {
         }
     }
 
-    // Java 8 is fine for a pure JNI shim; JDK 17 also works if your project requires it
+    // Updated to Java 11 for better compatibility and to avoid deprecation warnings
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_1_8
-        targetCompatibility JavaVersion.VERSION_1_8
+        sourceCompatibility JavaVersion.VERSION_11
+        targetCompatibility JavaVersion.VERSION_11
+    }
+    
+    // Suppress Java source/target deprecation warnings
+    tasks.withType(JavaCompile) {
+        options.compilerArgs << "-Xlint:-options"
     }
 
-    // Ensure only one libc++_shared is packaged
+    // Ensure native libraries are properly packaged
     packaging {
         jniLibs {
             pickFirsts += ['**/libc++_shared.so']
         }
     }
+    
+
+    
+
 }
 
 dependencies {
     implementation platform("org.jetbrains.kotlin:kotlin-bom:1.9.24")
-    implementation(name: 'licensespring-android', ext: 'aar')
     implementation 'androidx.appcompat:appcompat:1.6.1'
     implementation 'com.google.android.material:material:1.9.0'
     implementation 'androidx.constraintlayout:constraintlayout:2.1.4'

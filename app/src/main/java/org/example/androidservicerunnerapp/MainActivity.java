@@ -35,6 +35,7 @@ public class MainActivity extends Activity {
     private ScrollView scrollView;
 
     private boolean serviceRunning = false;
+    private boolean wasServiceRunning = false; // Track if service was previously running
     private boolean loggingActive = false;
     private boolean notificationPermissionGranted = false;
     private Handler mainHandler;
@@ -150,6 +151,33 @@ public class MainActivity extends Activity {
                 clearConsole();
             }
         });
+
+        // OpenCV test button
+        Button opencvTestButton = findViewById(R.id.button_test_opencv);
+        opencvTestButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                testOpenCV();
+            }
+        });
+
+        // Reset service button
+        Button resetServiceButton = findViewById(R.id.button_reset_service);
+        resetServiceButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                resetServiceState();
+            }
+        });
+
+        // Test OpenCV in service button
+        Button testOpenCVServiceButton = findViewById(R.id.button_test_opencv_service);
+        testOpenCVServiceButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                testOpenCVInService();
+            }
+        });
     }
 
     private void startQtService() {
@@ -168,6 +196,12 @@ public class MainActivity extends Activity {
         Log.i(TAG, "Starting Qt Service from test app");
 
         try {
+            // If we're restarting, wait a bit for cleanup
+            if (wasServiceRunning) {
+                appendToConsole("Waiting for previous service cleanup...");
+                Thread.sleep(2000); // Wait 2 seconds for cleanup
+                wasServiceRunning = false; // Reset the flag
+            }
             Intent serviceIntent = new Intent(this, org.qtproject.qtservice.QtServiceWrapper.class);
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -211,10 +245,12 @@ public class MainActivity extends Activity {
             Intent serviceIntent = new Intent(this, org.qtproject.qtservice.QtServiceWrapper.class);
             stopService(serviceIntent);
 
+            wasServiceRunning = true; // Mark that service was running
             serviceRunning = false;
             updateToggleButton();
 
             appendToConsole("Qt Service stop request sent");
+            appendToConsole("Waiting for service cleanup before restart...");
             Toast.makeText(this, "Qt Service Stopped", Toast.LENGTH_SHORT).show();
 
         } catch (Exception e) {
@@ -282,7 +318,12 @@ public class MainActivity extends Activity {
                 line.contains("Foreground service") ||
                 line.contains("POST_NOTIFICATIONS") ||
                 line.contains("notification permission") ||
-                line.contains("libQtAndroidService");
+                line.contains("libQtAndroidService") ||
+                line.contains("OpenCV") ||
+                line.contains("QtServiceJNI") ||
+                line.contains("OpenCV Test") ||
+                line.contains("cv::") ||
+                line.contains("libcpufeatures");
     }
 
     private String formatLogLine(String rawLine) {
@@ -364,6 +405,235 @@ public class MainActivity extends Activity {
         } else {
             serviceToggleButton.setText("START\nQt Service");
             serviceToggleButton.setBackgroundColor(0xFF4CAF50); // Green
+        }
+    }
+
+    private void testOpenCV() {
+        appendToConsole("=== OPENCV TEST STARTED ===");
+        appendToConsole("Testing OpenCV functionality...");
+        appendToConsole("Checking native library availability...");
+        
+        try {
+            // Step 1: Check if the native library is available (SAFE MODE)
+            appendToConsole("Step 1: Checking native library status...");
+            
+            // Don't try to load the library - just check if it exists
+            checkNativeLibraryStatus();
+            
+            // Step 2: Check if OpenCV files exist
+            appendToConsole("Step 2: Checking OpenCV installation...");
+            checkOpenCVInstallation();
+            
+            // Step 3: Check if we can access native methods (SAFE MODE)
+            appendToConsole("Step 3: Testing native method accessibility...");
+            testNativeMethodAccess();
+            
+            appendToConsole("=== OPENCV TEST COMPLETED ===");
+            appendToConsole("Note: Full OpenCV testing requires the service to be running");
+            appendToConsole("Start the Qt service first, then check logcat for OpenCV logs");
+            
+        } catch (Exception e) {
+            String errorMsg = "OpenCV test failed with exception: " + e.getMessage();
+            appendToConsole("=== OPENCV TEST ERROR ===");
+            appendToConsole("❌ " + errorMsg);
+            appendToConsole("❌ Exception type: " + e.getClass().getSimpleName());
+            
+            Log.e(TAG, errorMsg, e);
+            Toast.makeText(this, "OpenCV test failed", Toast.LENGTH_LONG).show();
+        }
+    }
+    
+    private void checkOpenCVInstallation() {
+        try {
+            // Check if OpenCV directory exists
+            java.io.File opencvDir = new java.io.File(getApplicationInfo().nativeLibraryDir);
+            appendToConsole("Native library directory: " + opencvDir.getAbsolutePath());
+            
+            // Check for OpenCV-related files
+            java.io.File[] files = opencvDir.listFiles();
+            if (files != null) {
+                boolean foundOpenCV = false;
+                for (java.io.File file : files) {
+                    if (file.getName().contains("opencv") || file.getName().contains("cv")) {
+                        appendToConsole("✓ Found OpenCV-related file: " + file.getName());
+                        foundOpenCV = true;
+                    }
+                }
+                if (!foundOpenCV) {
+                    appendToConsole("⚠ No OpenCV-related files found in native library directory");
+                }
+            }
+            
+            // Check if OpenCV source directory exists
+            java.io.File opencvSourceDir = new java.io.File(getApplicationInfo().sourceDir);
+            java.io.File opencvCppDir = new java.io.File(opencvSourceDir.getParentFile(), "cpp/opencv");
+            if (opencvCppDir.exists()) {
+                appendToConsole("✓ OpenCV source directory exists: " + opencvCppDir.getAbsolutePath());
+                
+                // Check for OpenCVConfig.cmake
+                java.io.File opencvConfig = new java.io.File(opencvCppDir, "arm64-v8a/sdk/native/jni/OpenCVConfig.cmake");
+                if (opencvConfig.exists()) {
+                    appendToConsole("✓ OpenCVConfig.cmake found");
+                } else {
+                    appendToConsole("⚠ OpenCVConfig.cmake not found - OpenCV may not be properly configured");
+                }
+            } else {
+                appendToConsole("⚠ OpenCV source directory not found: " + opencvCppDir.getAbsolutePath());
+                appendToConsole("⚠ This suggests OpenCV files are not in the expected location");
+            }
+            
+        } catch (Exception e) {
+            appendToConsole("⚠ Error checking OpenCV installation: " + e.getMessage());
+        }
+    }
+    
+    private void checkNativeLibraryStatus() {
+        try {
+            // Check if the native library file exists without loading it
+            java.io.File nativeLibDir = new java.io.File(getApplicationInfo().nativeLibraryDir);
+            appendToConsole("Native library directory: " + nativeLibDir.getAbsolutePath());
+            
+            java.io.File qtserviceLib = new java.io.File(nativeLibDir, "libqtservice-jni.so");
+            if (qtserviceLib.exists()) {
+                appendToConsole("✓ Native library file exists: libqtservice-jni.so");
+                appendToConsole("✓ File size: " + (qtserviceLib.length() / 1024) + " KB");
+            } else {
+                appendToConsole("❌ Native library file not found: libqtservice-jni.so");
+                appendToConsole("❌ This suggests the app hasn't been built with native code yet");
+                appendToConsole("❌ Build the project first to generate the native library");
+            }
+            
+            // Check for other native libraries
+            java.io.File[] files = nativeLibDir.listFiles();
+            if (files != null) {
+                appendToConsole("Available native libraries:");
+                for (java.io.File file : files) {
+                    if (file.getName().endsWith(".so")) {
+                        appendToConsole("  - " + file.getName() + " (" + (file.length() / 1024) + " KB)");
+                    }
+                }
+            }
+            
+        } catch (Exception e) {
+            appendToConsole("⚠ Error checking native library status: " + e.getMessage());
+        }
+    }
+    
+    private void testNativeMethodAccess() {
+        try {
+            // Try to access the QtServiceWrapper class without instantiating it
+            Class<?> serviceClass = Class.forName("org.qtproject.qtservice.QtServiceWrapper");
+            appendToConsole("✓ QtServiceWrapper class found");
+            
+            // Check if the testOpenCV method exists
+            try {
+                java.lang.reflect.Method testMethod = serviceClass.getMethod("testOpenCV");
+                appendToConsole("✓ testOpenCV method found");
+                
+                // Check if it's a native method
+                if (java.lang.reflect.Modifier.isNative(testMethod.getModifiers())) {
+                    appendToConsole("✓ testOpenCV is a native method");
+                } else {
+                    appendToConsole("⚠ testOpenCV is a Java wrapper method (calls native method)");
+                }
+                
+            } catch (NoSuchMethodException e) {
+                appendToConsole("❌ testOpenCV method not found in QtServiceWrapper");
+            }
+            
+            // Check if the nativeTestOpenCV method exists and is native
+            try {
+                java.lang.reflect.Method nativeMethod = serviceClass.getDeclaredMethod("nativeTestOpenCV");
+                appendToConsole("✓ nativeTestOpenCV method found");
+                
+                // Check if it's a native method
+                if (java.lang.reflect.Modifier.isNative(nativeMethod.getModifiers())) {
+                    appendToConsole("✓ nativeTestOpenCV is a native method");
+                } else {
+                    appendToConsole("❌ nativeTestOpenCV is not a native method");
+                }
+                
+            } catch (NoSuchMethodException e) {
+                appendToConsole("❌ nativeTestOpenCV method not found in QtServiceWrapper");
+            }
+            
+        } catch (ClassNotFoundException e) {
+            appendToConsole("❌ QtServiceWrapper class not found: " + e.getMessage());
+            appendToConsole("❌ Check your package structure and imports");
+        } catch (Exception e) {
+            appendToConsole("⚠ Error checking native method access: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Reset the service state to handle restart issues
+     */
+    private void resetServiceState() {
+        appendToConsole("=== RESETTING SERVICE STATE ===");
+        
+        try {
+            // Stop the service if it's running
+            if (serviceRunning) {
+                appendToConsole("Stopping currently running service...");
+                stopQtService();
+                
+                // Wait a bit more for cleanup
+                Thread.sleep(3000);
+            }
+            
+            // Reset all flags
+            serviceRunning = false;
+            wasServiceRunning = false;
+            
+            // Update UI
+            updateToggleButton();
+            
+            appendToConsole("✓ Service state reset completed");
+            appendToConsole("✓ Ready for fresh service start");
+            appendToConsole("=== SERVICE STATE RESET COMPLETE ===");
+            
+            Toast.makeText(this, "Service state reset completed", Toast.LENGTH_SHORT).show();
+            
+        } catch (Exception e) {
+            String errorMsg = "Failed to reset service state: " + e.getMessage();
+            appendToConsole("❌ ERROR: " + errorMsg);
+            Log.e(TAG, errorMsg, e);
+            Toast.makeText(this, "Failed to reset service state", Toast.LENGTH_LONG).show();
+        }
+    }
+    
+    /**
+     * Test OpenCV functionality in the running service
+     */
+    private void testOpenCVInService() {
+        appendToConsole("=== TESTING OPENCV IN SERVICE ===");
+        
+        if (!serviceRunning) {
+            appendToConsole("❌ Service is not running. Start the service first.");
+            Toast.makeText(this, "Start the service first", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        
+        try {
+            appendToConsole("Testing OpenCV in running Qt service...");
+            
+            // Create a service intent to test OpenCV
+            Intent serviceIntent = new Intent(this, org.qtproject.qtservice.QtServiceWrapper.class);
+            serviceIntent.setAction("TEST_OPENCV");
+            
+            // Start the service with the test action
+            startService(serviceIntent);
+            
+            appendToConsole("✓ OpenCV test request sent to service");
+            appendToConsole("Check the service logs below for OpenCV test results");
+            
+            Toast.makeText(this, "OpenCV test sent to service", Toast.LENGTH_SHORT).show();
+            
+        } catch (Exception e) {
+            String errorMsg = "Failed to test OpenCV in service: " + e.getMessage();
+            appendToConsole("❌ ERROR: " + errorMsg);
+            Log.e(TAG, errorMsg, e);
+            Toast.makeText(this, "OpenCV test failed", Toast.LENGTH_LONG).show();
         }
     }
 }

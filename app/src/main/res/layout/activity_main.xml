@@ -32,6 +32,45 @@
         android:layout_marginBottom="16dp"
         android:elevation="6dp" />
 
+    <!-- OpenCV Test Button -->
+    <Button
+        android:id="@+id/button_test_opencv"
+        android:layout_width="match_parent"
+        android:layout_height="50dp"
+        android:text="Test OpenCV"
+        android:textSize="14sp"
+        android:textStyle="bold"
+        android:background="#2196F3"
+        android:textColor="#FFFFFF"
+        android:layout_marginBottom="16dp"
+        android:elevation="4dp" />
+
+    <!-- Reset Service Button -->
+    <Button
+        android:id="@+id/button_reset_service"
+        android:layout_width="match_parent"
+        android:layout_height="50dp"
+        android:text="Reset Service State"
+        android:textSize="14sp"
+        android:textStyle="bold"
+        android:background="#FF5722"
+        android:textColor="#FFFFFF"
+        android:layout_marginBottom="16dp"
+        android:elevation="4dp" />
+
+    <!-- Test OpenCV in Service Button -->
+    <Button
+        android:id="@+id/button_test_opencv_service"
+        android:layout_width="match_parent"
+        android:layout_height="50dp"
+        android:text="Test OpenCV in Service"
+        android:textSize="14sp"
+        android:textStyle="bold"
+        android:background="#9C27B0"
+        android:textColor="#FFFFFF"
+        android:layout_marginBottom="16dp"
+        android:elevation="4dp" />
+
     <!-- Console Header -->
     <LinearLayout
         android:layout_width="match_parent"
